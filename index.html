@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>RINX VIRTUAL REMOVAL SIMULATOR</title>
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        rinx: {
+                            gold: '#c5a059',
+                            dark: '#111111',
+                            gray: '#333333',
+                            light: '#f9f9f9',
+                            white: '#ffffff',
+                            text: '#222222'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                        serif: ['"Cinzel"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #222222;
+            overflow: hidden;
+            /* Lock scroll for iPad app-feel */
+        }
+
+        .gold-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, #c5a059 50%, transparent 100%);
+            width: 100%;
+        }
+
+        /* Custom Range Input (Clean Light Theme) */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -12px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            border: 2px solid #c5a059;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e0e0e0;
+            border-radius: 2px;
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #c5a059;
+            border-radius: 50%;
+            display: inline-block;
+            position: relative;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        .loader::after {
+            content: '';
+            box-sizing: border-box;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-bottom-color: #c5a059;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn-gold {
+            background: #c5a059;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-gold:hover {
+            background: #b08d4b;
+            box-shadow: 0 4px 12px rgba(197, 160, 89, 0.3);
+        }
+
+        .btn-outline {
+            border: 1px solid #c5a059;
+            color: #c5a059;
+            background: transparent;
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline:hover {
+            background: rgba(197, 160, 89, 0.1);
+        }
+
+        /* iPad landscape optimization */
+        .canvas-container {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border-radius: 4px;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col bg-white">
+
+    <!-- Header -->
+    <header
+        class="w-full h-16 px-8 flex justify-center items-center bg-white border-b border-gray-100 z-50 shrink-0 relative">
+        <div class="flex items-center gap-3">
+            <div class="w-6 h-6 bg-[#c5a059] transform rotate-45"></div>
+            <h1 class="font-serif text-xl tracking-widest text-[#222222] font-bold">RINX <span
+                    class="text-xs font-normal tracking-wider ml-2 text-gray-500">VIRTUAL REMOVAL SIMULATOR</span></h1>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex items-stretch p-6 gap-6 overflow-hidden relative">
+
+        <!-- Initial State / Placeholder -->
+        <div id="heroPlaceholder"
+            class="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center p-8 transition-opacity duration-300">
+            <div class="max-w-2xl text-center space-y-6">
+                <h2 class="font-serif text-5xl text-[#c5a059] mb-4">The Future You</h2>
+                <p class="text-gray-500 leading-relaxed">
+                    写真を選択または撮影して、ヒゲのない理想の姿をシミュレーション。<br>
+                    AIが肌の質感を学習し、自然な仕上がりを実現します。
+                </p>
+                <div class="h-px w-24 bg-[#c5a059] mx-auto opacity-50"></div>
+                <div class="flex justify-center gap-6 pt-6">
+                    <!-- Photo Button -->
+                    <label
+                        class="btn-gold px-12 py-4 rounded-sm text-lg shadow-lg cursor-pointer transform hover:-translate-y-1 transition-transform flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        SELECT PHOTO
+                        <input type="file" id="imageUploadHero" accept="image/*" class="hidden">
+                    </label>
+
+                    <!-- Camera Button -->
+                    <button onclick="startCameraFromHero()"
+                        class="btn-outline px-12 py-4 rounded-sm text-lg shadow-lg cursor-pointer transform hover:-translate-y-1 transition-transform flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        </svg>
+                        CAMERA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-Column Grid for Before / After -->
+        <div id="simulatorView"
+            class="w-full h-full relative opacity-0 pointer-events-none transition-opacity duration-500">
+
+            <div class="absolute inset-0 grid grid-cols-2 gap-6 pb-24">
+                <!-- LEFT: BEFORE -->
+                <div class="flex flex-col h-full overflow-hidden">
+                    <div class="flex justify-between items-end mb-2 px-2 h-8 shrink-0">
+                        <span class="font-serif text-sm tracking-widest text-[#c5a059] font-bold">BEFORE</span>
+                    </div>
+                    <!-- Canvas Container -->
+                    <div class="flex-grow canvas-container relative bg-gray-100 w-full h-full">
+                        <canvas id="beforeCanvas" class="w-full h-full object-contain absolute inset-0"></canvas>
+                    </div>
+                </div>
+
+                <!-- RIGHT: AFTER -->
+                <div class="flex flex-col h-full overflow-hidden relative">
+                    <div class="flex justify-between items-end mb-2 px-2 h-8 shrink-0">
+                        <span class="font-serif text-sm tracking-widest text-[#c5a059] font-bold">AFTER</span>
+                        <!-- Download & Reset Buttons moved to header or overlay? Keeping here for now but absolute -->
+                        <div class="flex gap-2">
+                            <button id="downloadBtn"
+                                class="bg-white hover:bg-gray-50 text-gray-800 p-1.5 rounded-full shadow-sm transition-all"
+                                title="Save">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                            </button>
+                            <button onclick="resetApp()"
+                                class="bg-white hover:bg-gray-50 text-gray-400 hover:text-red-500 p-1.5 rounded-full shadow-sm transition-all"
+                                title="Reset">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas Container -->
+                    <div class="flex-grow canvas-container relative bg-gray-100 w-full h-full">
+                        <canvas id="mainCanvas" class="w-full h-full object-contain absolute inset-0"></canvas>
+
+                        <!-- Loading Indicator -->
+                        <div id="loadingOverlay"
+                            class="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-20 hidden">
+                            <span class="loader mb-4"></span>
+                            <p class="text-[#c5a059] tracking-widest text-xs font-bold">PROCESSING...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Central Bottom Slider -->
+            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-xl z-20 px-6">
+                <div
+                    class="bg-white/90 backdrop-blur shadow-2xl rounded-full px-8 py-4 border border-gray-100 flex items-center gap-4">
+                    <span class="font-sans text-xs font-bold text-gray-400">0%</span>
+                    <input type="range" id="intensitySlider" min="0" max="100" value="0" class="flex-grow">
+                    <span class="font-sans text-xs font-bold text-gray-400">100%</span>
+                    <div class="w-px h-8 bg-gray-200 mx-2"></div>
+                    <span id="intensityValue"
+                        class="font-serif text-lg font-bold text-[#c5a059] w-12 text-center">0%</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-2 text-center bg-white border-t border-gray-100 shrink-0 z-40 relative">
+        <p class="text-[10px] text-gray-400 font-sans tracking-wider">Copyright© RINX Co.Ltd., All Rights Reserved.</p>
+    </footer>
+
+    <!-- Camera Modal -->
+    <div id="cameraModal" class="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center hidden">
+        <div class="relative h-full w-full max-w-4xl flex items-center justify-center bg-black">
+            <video id="videoElement" class="h-full w-full object-cover opacity-80" autoplay playsinline></video>
+
+            <!-- GUIDELINE OVERLAY -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <!-- Oval Face Guide SVG -->
+                <svg viewBox="0 0 100 100" class="h-[70%] w-auto opacity-60 drop-shadow-lg">
+                    <!-- Face Oval -->
+                    <ellipse cx="50" cy="50" rx="30" ry="40" fill="none" stroke="white" stroke-width="0.8"
+                        stroke-dasharray="2 2" />
+
+                    <!-- Center Line -->
+                    <line x1="50" y1="10" x2="50" y2="20" stroke="white" stroke-width="0.5" />
+                    <line x1="50" y1="80" x2="50" y2="90" stroke="white" stroke-width="0.5" />
+
+                    <!-- Eye Level Guide -->
+                    <line x1="30" y1="42" x2="70" y2="42" stroke="white" stroke-width="0.3" stroke-dasharray="1 1" />
+                </svg>
+                <div
+                    class="absolute bottom-32 bg-black/50 px-6 py-2 rounded-full border border-white/20 backdrop-blur-sm">
+                    <p class="text-white text-sm tracking-widest font-bold">枠内に顔を入れてください</p>
+                </div>
+            </div>
+
+            <button onclick="closeCamera()"
+                class="absolute top-8 right-8 text-white p-4 hover:bg-white/10 rounded-full z-20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <button id="shutterBtn"
+                class="absolute bottom-12 w-20 h-20 rounded-full border-4 border-white bg-transparent flex items-center justify-center hover:bg-white/20 transition-all z-20">
+                <div class="w-16 h-16 bg-white rounded-full"></div>
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // State
+        let isModelLoaded = false;
+        let originalImageData = null; // ImageData object
+        let landmarks = null;
+        let skinColor = null;
+        let noiseTexture = null;
+        let currentImgElement = null; // Store temp image for resizing logic
+
+        // DOM Elements
+        const mainCanvas = document.getElementById('mainCanvas');
+        const beforeCanvas = document.getElementById('beforeCanvas');
+        const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+        const beforeCtx = beforeCanvas.getContext('2d');
+
+        const fileInput = document.getElementById('imageUpload');
+        const fileInputHero = document.getElementById('imageUploadHero');
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityDisplay = document.getElementById('intensityValue');
+
+        const heroPlaceholder = document.getElementById('heroPlaceholder');
+        const simulatorView = document.getElementById('simulatorView');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // --- Init ---
+        async function init() {
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+                ]);
+                isModelLoaded = true;
+                console.log("Models Loaded");
+            } catch (e) {
+                console.error(e);
+                alert("AIモデルの読み込みに失敗しました。リロードしてください。");
+            }
+        }
+        init();
+
+        // --- Logic ---
+        const handleFile = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                loadImage(URL.createObjectURL(e.target.files[0]));
+            }
+        };
+        // Removed header file input listener
+        fileInputHero.addEventListener('change', handleFile);
+
+        function loadImage(url) {
+            if (!isModelLoaded) return alert("準備中です");
+
+            heroPlaceholder.style.opacity = '0';
+            setTimeout(() => {
+                heroPlaceholder.classList.add('hidden');
+                simulatorView.classList.remove('pointer-events-none');
+                simulatorView.classList.remove('opacity-0');
+            }, 300);
+
+            loadingOverlay.classList.remove('hidden');
+
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = async () => {
+                currentImgElement = img;
+                await processImage(img);
+            };
+            img.src = url;
+        }
+
+        async function processImage(img) {
+            try {
+                // Fit Logic: Contain within the container
+                // We use the container size to determine canvas size
+                // For a side-by-side view, both canvases should match the image aspect ratio
+                // but fit within their respective containers.
+
+                // However, for FaceAPI and pixel manipulation to work easily, 
+                // we usually set canvas size to exact image size (or scaled down) 
+                // and let CSS handle the 'object-contain' display.
+                // But FaceAPI results depend on coordinate space.
+
+                // Approach:
+                // Use physical pixels for processing, CSS for display size
+                const dpr = window.devicePixelRatio || 1;
+                let w = img.width;
+                let h = img.height;
+
+                // Limit max size for performance (iPad safari memory limit)
+                const MAX_DIM = 2048;
+                if (w > MAX_DIM || h > MAX_DIM) {
+                    const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+                    w = Math.floor(w * ratio);
+                    h = Math.floor(h * ratio);
+                }
+
+                // Setup Canvases (Physical pixels)
+                mainCanvas.width = w;
+                mainCanvas.height = h;
+                beforeCanvas.width = w;
+                beforeCanvas.height = h;
+
+                // CSS will handle the actual display size (object-contain)
+                // If we were doing UI overlays on top of canvas, we'd need to set style.width/height
+                // but since it's object-contain in a flex-grow container, CSS handles it.
+
+                // Draw Initial State
+                mainCtx.drawImage(img, 0, 0, w, h);
+                beforeCtx.drawImage(img, 0, 0, w, h);
+
+                originalImageData = mainCtx.getImageData(0, 0, w, h);
+
+                // Detect Faces
+                const detections = await faceapi.detectAllFaces(mainCanvas, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+
+                if (!detections || detections.length === 0) {
+                    alert("顔が見つかりませんでした");
+                    loadingOverlay.classList.add('hidden');
+                    return;
+                }
+
+                landmarks = detections[0].landmarks;
+                setupCorrectionData(); // Calculate skin color
+
+                // Reset Slider
+                updateSlider(0);
+                loadingOverlay.classList.add('hidden');
+
+            } catch (e) {
+                console.error(e);
+                alert("エラーが発生しました: " + e.message);
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function updateSlider(val) {
+            intensitySlider.value = val;
+            intensityDisplay.innerText = val + "%";
+            window.requestAnimationFrame(() => render(val / 100));
+        }
+
+        // --- Skin Color Logic (V5/V7) ---
+        function setupCorrectionData() {
+            if (!landmarks) return;
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
+
+            // Scaled sampling area
+            const sampleSize = Math.max(20, Math.floor(mainCanvas.width * 0.02));
+
+            // Sampling areas (Under eyes)
+            const lRect = { x: Math.floor(leftEye[0].x), y: Math.floor(leftEye[5].y + 10), w: sampleSize, h: sampleSize };
+            const rRect = { x: Math.floor(rightEye[3].x - sampleSize), y: Math.floor(rightEye[4].y + 10), w: sampleSize, h: sampleSize };
+
+            const c1 = getAvgColor(lRect);
+            const c2 = getAvgColor(rRect);
+
+            // Choose brighter/cleaner skin tone
+            const luma1 = 0.299 * c1.r + 0.587 * c1.g + 0.114 * c1.b;
+            const luma2 = 0.299 * c2.r + 0.587 * c2.g + 0.114 * c2.b;
+            const best = (luma1 > luma2) ? c1 : c2;
+
+            skinColor = `rgb(${best.r}, ${best.g}, ${best.b})`;
+
+            // Noise Texture
+            noiseTexture = createNoiseTexture(mainCanvas.width, mainCanvas.height, 0.45);
+        }
+
+        function getAvgColor(r) {
+            try {
+                const data = mainCtx.getImageData(r.x, r.y, r.w, r.h).data;
+                let R = 0, G = 0, B = 0, count = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    R += data[i]; G += data[i + 1]; B += data[i + 2]; count++;
+                }
+                return count ? { r: R / count, g: G / count, b: B / count } : { r: 220, g: 180, b: 160 };
+            } catch (e) { return { r: 220, g: 180, b: 160 }; }
+        }
+
+        // --- Render Logic (V7.5 - Dynamic & Soft Mask) ---
+        function render(alpha) {
+            if (!originalImageData || !landmarks) return;
+
+            // 1. Reset
+            mainCtx.putImageData(originalImageData, 0, 0);
+            if (alpha <= 0) return;
+
+            const t = alpha;
+            const w = mainCanvas.width;
+            const h = mainCanvas.height;
+
+            // Dynamic scaling based on resolution (Reference: 1000px)
+            const baseScale = Math.min(w, h) / 1000;
+            const blurAmt = 12 * baseScale; // More generous blur for high-res
+            const shadowBlur = 8 * baseScale;
+
+            const jaw = landmarks.getJawOutline();
+            const nose = landmarks.getNose();
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
+            const mouth = landmarks.getMouth();
+
+            // 2. Beard Mask Surface (Soft Mask)
+            const maskSurface = createOffscreenCanvas(w, h);
+            const mCtx = maskSurface.ctx;
+
+            // Beard Mask Path
+            const beardPath = new Path2D();
+            const rCheekX = rightEye[1].x;
+            const rCheekY = rightEye[4].y + (nose[8].y - rightEye[4].y) * 0.25;
+            const lCheekX = leftEye[1].x;
+            const lCheekY = leftEye[4].y + (nose[4].y - leftEye[4].y) * 0.25;
+
+            beardPath.moveTo(jaw[0].x, jaw[0].y);
+            for (let i = 1; i <= 16; i++) beardPath.lineTo(jaw[i].x, jaw[i].y);
+            beardPath.lineTo(jaw[16].x, jaw[16].y);
+            beardPath.lineTo(rCheekX, rCheekY);
+            beardPath.lineTo(nose[8].x, nose[8].y + (8 * baseScale));
+            beardPath.lineTo(nose[6].x, nose[6].y + (2 * baseScale));
+            beardPath.lineTo(nose[4].x, nose[4].y + (8 * baseScale));
+            beardPath.lineTo(lCheekX, lCheekY);
+            beardPath.lineTo(jaw[0].x, jaw[0].y);
+            beardPath.closePath();
+
+            // Create Feathered Mask
+            mCtx.fillStyle = 'white';
+            mCtx.fill(beardPath);
+            mCtx.filter = `blur(${8 * baseScale}px)`;
+            mCtx.globalCompositeOperation = 'source-in'; // Keep edges blurred within
+            mCtx.fill(beardPath);
+
+            // 3. Effect Layer
+            const layer = createOffscreenCanvas(w, h);
+            const lCtx = layer.ctx;
+
+            // Base Smoothing (Blurred version of original skin)
+            const blurLayer = createOffscreenCanvas(w, h);
+            blurLayer.ctx.filter = `blur(${blurAmt}px)`;
+            blurLayer.ctx.drawImage(mainCanvas, 0, 0);
+
+            // Compose Effect
+            lCtx.drawImage(blurLayer.canvas, 0, 0); // Skin smoothing
+
+            lCtx.globalCompositeOperation = 'soft-light';
+            lCtx.fillStyle = skinColor;
+            lCtx.globalAlpha = Math.min(1.0, t * 0.85);
+            lCtx.fillRect(0, 0, w, h); // Lift Shadows
+
+            lCtx.globalCompositeOperation = 'color';
+            lCtx.globalAlpha = Math.min(1.0, t * 0.7);
+            lCtx.fillRect(0, 0, w, h); // Color correction
+
+            if (noiseTexture) {
+                lCtx.globalCompositeOperation = 'overlay';
+                lCtx.globalAlpha = 0.1;
+                lCtx.drawImage(noiseTexture, 0, 0);
+            }
+
+            // 4. Mustache Specific (More intense correction)
+            const mPath = new Path2D();
+            mPath.moveTo(nose[3].x, nose[3].y);
+            mPath.lineTo(nose[7].x, nose[7].y);
+            mPath.lineTo(mouth[6].x + (5 * baseScale), mouth[6].y);
+            mPath.lineTo(mouth[0].x - (5 * baseScale), mouth[0].y);
+            mPath.closePath();
+
+            const mustacheLayer = createOffscreenCanvas(w, h);
+            const muCtx = mustacheLayer.ctx;
+            muCtx.filter = `blur(${6 * baseScale}px)`;
+            muCtx.fillStyle = skinColor;
+            muCtx.fill(mPath);
+            muCtx.globalCompositeOperation = 'screen';
+            muCtx.globalAlpha = 0.4 * t;
+            muCtx.fill(mPath);
+
+            lCtx.globalCompositeOperation = 'source-over';
+            lCtx.drawImage(mustacheLayer.canvas, 0, 0);
+
+            // 5. Final Composition with Mask
+            const finalEffect = createOffscreenCanvas(w, h);
+            finalEffect.ctx.drawImage(layer.canvas, 0, 0);
+            finalEffect.ctx.globalCompositeOperation = 'destination-in';
+            finalEffect.ctx.drawImage(maskSurface.canvas, 0, 0);
+
+            // Post-process: Exclude sensitive areas (Lips/Nostrils)
+            const exclusion = createOffscreenCanvas(w, h);
+            const eCtx = exclusion.ctx;
+
+            // Lips
+            const outerLip = mouth.slice(0, 12);
+            eCtx.beginPath();
+            eCtx.moveTo(outerLip[0].x, outerLip[0].y);
+            for (let i = 1; i < outerLip.length; i++) eCtx.lineTo(outerLip[i].x, outerLip[i].y);
+            eCtx.closePath();
+            eCtx.fill();
+
+            // Nostrils
+            eCtx.beginPath();
+            eCtx.moveTo(nose[4].x, nose[4].y);
+            eCtx.lineTo(nose[6].x, nose[6].y + (5 * baseScale));
+            eCtx.lineTo(nose[8].x, nose[8].y);
+            eCtx.closePath();
+            eCtx.fill();
+
+            finalEffect.ctx.globalCompositeOperation = 'destination-out';
+            finalEffect.ctx.filter = `blur(${4 * baseScale}px)`;
+            finalEffect.ctx.drawImage(exclusion.canvas, 0, 0);
+
+            // Render to Main Canvas
+            mainCtx.globalAlpha = t;
+            mainCtx.drawImage(finalEffect.canvas, 0, 0);
+            mainCtx.globalAlpha = 1.0;
+        }
+
+        // --- Helpers ---
+        intensitySlider.addEventListener('input', (e) => updateSlider(e.target.value));
+
+        function resetApp() { window.location.reload(); }
+
+        function createOffscreenCanvas(w, h) {
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            return { canvas: c, ctx: c.getContext('2d') };
+        }
+
+        function createNoiseTexture(w, h, amount) {
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const x = c.getContext('2d');
+            const id = x.createImageData(w, h);
+            const d = id.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const v = 128 + (Math.random() - 0.5) * 255 * amount;
+                d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+            }
+            x.putImageData(id, 0, 0);
+            return c;
+        }
+
+        // Camera Logic
+        const cameraModal = document.getElementById('cameraModal');
+        const videoEl = document.getElementById('videoElement');
+        let stream = null;
+
+        // Header button listener removed (button deleted)
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                videoEl.srcObject = stream;
+                cameraModal.classList.remove('hidden');
+            } catch (e) { alert("Camera Error"); }
+        }
+
+        // Expose for Hero Button
+        window.startCameraFromHero = startCamera;
+
+        function closeCamera() {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            cameraModal.classList.add('hidden');
+        }
+
+        document.getElementById('shutterBtn').addEventListener('click', () => {
+            const c = document.createElement('canvas');
+            c.width = videoEl.videoWidth; c.height = videoEl.videoHeight;
+            c.getContext('2d').drawImage(videoEl, 0, 0);
+            loadImage(c.toDataURL());
+            closeCamera();
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'rinx_after.png';
+            link.href = mainCanvas.toDataURL();
+            link.click();
+        });
+
+    </script>
+</body>
+
+</html>
