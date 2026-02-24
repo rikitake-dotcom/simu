@@ -494,7 +494,7 @@
             } catch (e) { return { r: 220, g: 180, b: 160 }; }
         }
 
-        // --- Render Logic (V7.5 - Dynamic & Soft Mask) ---
+        // --- Render V7.4 Logic ---
         function render(alpha) {
             if (!originalImageData || !landmarks) return;
 
@@ -503,23 +503,15 @@
             if (alpha <= 0) return;
 
             const t = alpha;
-            const w = mainCanvas.width;
-            const h = mainCanvas.height;
-
-            // Dynamic scaling based on resolution (Reference: 1000px)
-            const baseScale = Math.min(w, h) / 1000;
-            const blurAmt = 12 * baseScale; // More generous blur for high-res
-            const shadowBlur = 8 * baseScale;
-
             const jaw = landmarks.getJawOutline();
             const nose = landmarks.getNose();
             const leftEye = landmarks.getLeftEye();
             const rightEye = landmarks.getRightEye();
             const mouth = landmarks.getMouth();
 
-            // 2. Beard Mask Surface (Soft Mask)
-            const maskSurface = createOffscreenCanvas(w, h);
-            const mCtx = maskSurface.ctx;
+            // 2. Offscreen Layer
+            const layer = createOffscreenCanvas(mainCanvas.width, mainCanvas.height);
+            const lCtx = layer.ctx;
 
             // Beard Mask Path
             const beardPath = new Path2D();
@@ -532,75 +524,77 @@
             for (let i = 1; i <= 16; i++) beardPath.lineTo(jaw[i].x, jaw[i].y);
             beardPath.lineTo(jaw[16].x, jaw[16].y);
             beardPath.lineTo(rCheekX, rCheekY);
-            beardPath.lineTo(nose[8].x, nose[8].y + (8 * baseScale));
-            beardPath.lineTo(nose[6].x, nose[6].y + (2 * baseScale));
-            beardPath.lineTo(nose[4].x, nose[4].y + (8 * baseScale));
+            beardPath.lineTo(nose[8].x, nose[8].y + 8);
+            beardPath.lineTo(nose[6].x, nose[6].y + 2);
+            beardPath.lineTo(nose[4].x, nose[4].y + 8);
             beardPath.lineTo(lCheekX, lCheekY);
             beardPath.lineTo(jaw[0].x, jaw[0].y);
             beardPath.closePath();
 
-            // Create Feathered Mask
-            mCtx.fillStyle = 'white';
-            mCtx.fill(beardPath);
-            mCtx.filter = `blur(${8 * baseScale}px)`;
-            mCtx.globalCompositeOperation = 'source-in'; // Keep edges blurred within
-            mCtx.fill(beardPath);
+            // Clip & Draw
+            lCtx.save();
+            lCtx.clip(beardPath);
 
-            // 3. Effect Layer
-            const layer = createOffscreenCanvas(w, h);
-            const lCtx = layer.ctx;
-
-            // Base Smoothing (Blurred version of original skin)
-            const blurLayer = createOffscreenCanvas(w, h);
-            blurLayer.ctx.filter = `blur(${blurAmt}px)`;
-            blurLayer.ctx.drawImage(mainCanvas, 0, 0);
-
-            // Compose Effect
-            lCtx.drawImage(blurLayer.canvas, 0, 0); // Skin smoothing
+            // Effect Stack (V7)
+            lCtx.globalCompositeOperation = 'source-over';
+            lCtx.filter = 'blur(8px)';
+            lCtx.drawImage(mainCanvas, 0, 0); // Base Blur
+            lCtx.filter = 'none';
 
             lCtx.globalCompositeOperation = 'soft-light';
             lCtx.fillStyle = skinColor;
-            lCtx.globalAlpha = Math.min(1.0, t * 0.85);
-            lCtx.fillRect(0, 0, w, h); // Lift Shadows
+            lCtx.globalAlpha = Math.min(1.0, t * 0.9);
+            lCtx.fillRect(0, 0, mainCanvas.width, mainCanvas.height); // Lift Shadows
 
             lCtx.globalCompositeOperation = 'color';
-            lCtx.globalAlpha = Math.min(1.0, t * 0.7);
-            lCtx.fillRect(0, 0, w, h); // Color correction
+            lCtx.globalAlpha = Math.min(1.0, t * 0.8);
+            lCtx.fillRect(0, 0, mainCanvas.width, mainCanvas.height); // Correct Color
 
             if (noiseTexture) {
                 lCtx.globalCompositeOperation = 'overlay';
-                lCtx.globalAlpha = 0.1;
-                lCtx.drawImage(noiseTexture, 0, 0);
+                lCtx.globalAlpha = 0.12;
+                lCtx.drawImage(noiseTexture, 0, 0); // Texture
             }
+            lCtx.restore();
 
-            // 4. Mustache Specific (More intense correction)
+            // Mustache Boost (V7.4 - Dual Layer)
+            lCtx.save();
             const mPath = new Path2D();
-            mPath.moveTo(nose[3].x, nose[3].y);
-            mPath.lineTo(nose[7].x, nose[7].y);
-            mPath.lineTo(mouth[6].x + (5 * baseScale), mouth[6].y);
-            mPath.lineTo(mouth[0].x - (5 * baseScale), mouth[0].y);
+            mPath.moveTo(nose[4].x - 2, nose[4].y);
+            mPath.lineTo(nose[6].x, nose[6].y - 2);
+            mPath.lineTo(nose[8].x + 2, nose[8].y);
+            mPath.lineTo(mouth[6].x + 2, mouth[6].y);
+            mPath.lineTo(mouth[4].x, mouth[4].y - 2);
+            mPath.lineTo(mouth[3].x, mouth[3].y - 2);
+            mPath.lineTo(mouth[2].x, mouth[2].y - 2);
+            mPath.lineTo(mouth[0].x - 2, mouth[0].y);
             mPath.closePath();
+            lCtx.clip(mPath);
+            lCtx.filter = 'blur(6px)';
 
-            const mustacheLayer = createOffscreenCanvas(w, h);
-            const muCtx = mustacheLayer.ctx;
-            muCtx.filter = `blur(${6 * baseScale}px)`;
-            muCtx.fillStyle = skinColor;
-            muCtx.fill(mPath);
-            muCtx.globalCompositeOperation = 'screen';
-            muCtx.globalAlpha = 0.4 * t;
-            muCtx.fill(mPath);
-
+            // Layer 1: Cover
             lCtx.globalCompositeOperation = 'source-over';
-            lCtx.drawImage(mustacheLayer.canvas, 0, 0);
+            lCtx.fillStyle = skinColor;
+            lCtx.globalAlpha = Math.min(0.35, t * 0.35);
+            lCtx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
 
-            // 5. Final Composition with Mask
-            const finalEffect = createOffscreenCanvas(w, h);
-            finalEffect.ctx.drawImage(layer.canvas, 0, 0);
-            finalEffect.ctx.globalCompositeOperation = 'destination-in';
-            finalEffect.ctx.drawImage(maskSurface.canvas, 0, 0);
+            // Layer 2: Lift
+            lCtx.globalCompositeOperation = 'screen';
+            lCtx.globalAlpha = Math.min(0.5, t * 0.5);
+            lCtx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+            lCtx.restore();
 
-            // Post-process: Exclude sensitive areas (Lips/Nostrils)
-            const exclusion = createOffscreenCanvas(w, h);
+            // Prepare Composite
+            const output = createOffscreenCanvas(mainCanvas.width, mainCanvas.height);
+            output.ctx.drawImage(layer.canvas, 0, 0);
+
+            // Post-Blur Masking (Lips + Nose)
+            const finalBlend = createOffscreenCanvas(mainCanvas.width, mainCanvas.height);
+            finalBlend.ctx.filter = 'blur(10px)'; // Soften overall edges
+            finalBlend.ctx.drawImage(output.canvas, 0, 0);
+
+            // Erase Lips & Nose
+            const exclusion = createOffscreenCanvas(mainCanvas.width, mainCanvas.height);
             const eCtx = exclusion.ctx;
 
             // Lips
@@ -609,23 +603,27 @@
             eCtx.moveTo(outerLip[0].x, outerLip[0].y);
             for (let i = 1; i < outerLip.length; i++) eCtx.lineTo(outerLip[i].x, outerLip[i].y);
             eCtx.closePath();
-            eCtx.fill();
+            eCtx.fillStyle = 'black'; eCtx.fill();
+            eCtx.lineWidth = 6; eCtx.strokeStyle = 'black'; eCtx.lineJoin = 'round'; eCtx.stroke();
 
-            // Nostrils
+            // Nose
             eCtx.beginPath();
-            eCtx.moveTo(nose[4].x, nose[4].y);
-            eCtx.lineTo(nose[6].x, nose[6].y + (5 * baseScale));
+            eCtx.moveTo(nose[0].x, nose[0].y);
+            eCtx.lineTo(nose[4].x, nose[4].y);
+            eCtx.lineTo(nose[6].x, nose[6].y + 5);
             eCtx.lineTo(nose[8].x, nose[8].y);
             eCtx.closePath();
-            eCtx.fill();
+            eCtx.fillStyle = 'black'; eCtx.fill();
+            eCtx.lineWidth = 6; eCtx.strokeStyle = 'black'; eCtx.stroke();
 
-            finalEffect.ctx.globalCompositeOperation = 'destination-out';
-            finalEffect.ctx.filter = `blur(${4 * baseScale}px)`;
-            finalEffect.ctx.drawImage(exclusion.canvas, 0, 0);
+            // Carve out exclusion zone
+            finalBlend.ctx.globalCompositeOperation = 'destination-out';
+            finalBlend.ctx.filter = 'blur(4px)';
+            finalBlend.ctx.drawImage(exclusion.canvas, 0, 0);
 
-            // Render to Main Canvas
+            // Compost to Main
             mainCtx.globalAlpha = t;
-            mainCtx.drawImage(finalEffect.canvas, 0, 0);
+            mainCtx.drawImage(finalBlend.canvas, 0, 0);
             mainCtx.globalAlpha = 1.0;
         }
 
